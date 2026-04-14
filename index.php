@@ -3,13 +3,13 @@ require_once 'includes/config.php';
 
 // Redirect if already logged in
 if (isAdminLoggedIn()) redirect('admin/dashboard.php');
+if (isStaffLoggedIn()) redirect('staff/dashboard.php');
 if (isStudentLoggedIn()) redirect('student/dashboard.php');
 
 $error = '';
 $success = flash('success');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $role     = $_POST['role'] ?? 'student';
     $email    = sanitize($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
@@ -18,37 +18,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $db = getDB();
 
-        if ($role === 'admin') {
-            $stmt = $db->prepare("SELECT id, name, password FROM admins WHERE email = ?");
-            $stmt->bind_param('s', $email);
-            $stmt->execute();
-            $admin = $stmt->get_result()->fetch_assoc();
+        // Try Admin first
+        $stmt = $db->prepare("SELECT id, name, password FROM admins WHERE email = ?");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $admin = $stmt->get_result()->fetch_assoc();
 
-            if ($admin && password_verify($password, $admin['password'])) {
-                $_SESSION['admin_id'] = $admin['id'];
-                $_SESSION['admin_name'] = $admin['name'];
-                $_SESSION['role'] = 'admin';
-                redirect('admin/dashboard.php');
-            } else {
-                $error = 'Invalid admin credentials.';
-            }
-        } else {
-            $stmt = $db->prepare("SELECT id, name, student_id, class, section, password FROM students WHERE email = ? AND status = 'Active'");
-            $stmt->bind_param('s', $email);
-            $stmt->execute();
-            $student = $stmt->get_result()->fetch_assoc();
-
-            if ($student && password_verify($password, $student['password'])) {
-                $_SESSION['student_id']  = $student['id'];
-                $_SESSION['student_uid'] = $student['student_id'];
-                $_SESSION['student_name'] = $student['name'];
-                $_SESSION['student_class'] = $student['class'];
-                $_SESSION['role'] = 'student';
-                redirect('student/dashboard.php');
-            } else {
-                $error = 'Invalid student credentials.';
-            }
+        if ($admin && password_verify($password, $admin['password'])) {
+            $_SESSION['admin_id'] = $admin['id'];
+            $_SESSION['admin_name'] = $admin['name'];
+            $_SESSION['role'] = 'admin';
+            redirect('admin/dashboard.php');
         }
+
+        // Try Staff next
+        $stmt = $db->prepare("SELECT id, name, password FROM staffs WHERE email = ? AND status = 'Active'");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $staff = $stmt->get_result()->fetch_assoc();
+
+        if ($staff && password_verify($password, $staff['password'])) {
+            $_SESSION['staff_id'] = $staff['id'];
+            $_SESSION['staff_name'] = $staff['name'];
+            $_SESSION['role'] = 'staff';
+            redirect('staff/dashboard.php');
+        }
+
+        // Try Student last
+        $stmt = $db->prepare("SELECT id, name, student_id, year, degree, password FROM students WHERE email = ? AND status = 'Active'");
+        $stmt->bind_param('s', $email);
+        $stmt->execute();
+        $student = $stmt->get_result()->fetch_assoc();
+
+        if ($student && password_verify($password, $student['password'])) {
+            $_SESSION['student_id']  = $student['id'];
+            $_SESSION['student_uid'] = $student['student_id'];
+            $_SESSION['student_name'] = $student['name'];
+            $_SESSION['student_year'] = $student['year'];
+            $_SESSION['student_degree'] = $student['degree'];
+            $_SESSION['role'] = 'student';
+            redirect('student/dashboard.php');
+        }
+
+        $error = 'Invalid credentials. Please check your email and password.';
     }
 }
 ?>
@@ -203,29 +215,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     color: var(--muted); font-size: .9rem; margin-bottom: 36px;
   }
 
-  /* Role toggle */
-  .role-toggle {
-    display: grid; grid-template-columns: 1fr 1fr;
-    background: var(--card);
+  /* Role info badges */
+  .role-info {
+    display: flex; gap: 8px; margin-bottom: 28px; flex-wrap: wrap;
+  }
+  .role-badge {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 100px;
+    font-size: .75rem; font-weight: 600;
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 5px;
-    margin-bottom: 32px;
-    gap: 4px;
+    background: var(--card);
+    color: var(--muted);
   }
-  .role-btn {
-    padding: 10px; border: none; border-radius: 8px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: .9rem; font-weight: 500;
-    cursor: pointer;
-    transition: all .25s;
-    background: transparent; color: var(--muted);
+  .role-badge .dot {
+    width: 8px; height: 8px; border-radius: 50%;
   }
-  .role-btn.active {
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    color: #fff;
-    box-shadow: 0 4px 16px rgba(79,142,247,.35);
-  }
+  .role-badge.admin .dot { background: var(--accent); }
+  .role-badge.staff .dot { background: var(--gold); }
+  .role-badge.student .dot { background: var(--success); }
 
   /* Form */
   .form-group { margin-bottom: 20px; }
@@ -251,16 +258,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     box-shadow: 0 0 0 3px rgba(79,142,247,.15);
   }
   .form-group input::placeholder { color: var(--muted); }
-
-  .demo-hint {
-    font-size: .78rem; color: var(--muted);
-    background: rgba(79,142,247,.08);
-    border: 1px solid rgba(79,142,247,.15);
-    border-radius: 8px; padding: 10px 14px;
-    margin-bottom: 24px;
-    line-height: 1.6;
-  }
-  .demo-hint strong { color: var(--accent); }
 
   .btn-login {
     width: 100%;
@@ -342,10 +339,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <h2>Welcome Back 👋</h2>
       <p class="sub">Sign in to your account to continue</p>
 
-      <!-- Role toggle -->
-      <div class="role-toggle" id="roleToggle">
-        <button class="role-btn active" data-role="admin" onclick="setRole('admin',this)">🛡 Admin</button>
-        <button class="role-btn" data-role="student" onclick="setRole('student',this)">🎒 Student</button>
+      <!-- Role info -->
+      <div class="role-info">
+        <div class="role-badge admin"><div class="dot"></div> Admin</div>
+        <div class="role-badge staff"><div class="dot"></div> Staff</div>
+        <div class="role-badge student"><div class="dot"></div> Student</div>
       </div>
 
       <?php if ($error): ?>
@@ -356,22 +354,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <?php endif; ?>
 
       <form method="POST" id="loginForm">
-        <input type="hidden" name="role" id="roleInput" value="admin">
-
         <div class="form-group">
           <label>Email Address</label>
           <input type="email" name="email" id="emailInput" placeholder="Enter your email" required
-                 value="admin@school.com">
+                 value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
         </div>
         <div class="form-group">
           <label>Password</label>
-          <input type="password" name="password" placeholder="Enter your password" required
-                 value="password">
-        </div>
-
-        <div class="demo-hint" id="demoHint">
-          <strong>Admin Demo:</strong> admin@school.com / password<br>
-          <strong>Student Demo:</strong> arjun@student.com / password
+          <input type="password" name="password" placeholder="Enter your password" required>
         </div>
 
         <button type="submit" class="btn-login">Sign In →</button>
@@ -379,24 +369,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
   </div>
 </div>
-
-<script>
-function setRole(role, btn) {
-  document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('roleInput').value = role;
-
-  if (role === 'admin') {
-    document.getElementById('emailInput').value = 'admin@school.com';
-  } else {
-    document.getElementById('emailInput').value = 'arjun@student.com';
-  }
-}
-
-// Auto-detect role from PHP error context
-<?php if ($_POST['role'] ?? '' === 'student'): ?>
-document.querySelector('[data-role="student"]').click();
-<?php endif; ?>
-</script>
 </body>
 </html>

@@ -13,15 +13,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name       = sanitize($_POST['name']);
         $email      = sanitize($_POST['email']);
         $sid        = sanitize($_POST['student_id']);
-        $class      = sanitize($_POST['class']);
-        $section    = sanitize($_POST['section']);
+        $year       = sanitize($_POST['year']);
+        $degree     = sanitize($_POST['degree']);
         $phone      = sanitize($_POST['phone']);
         $gender     = sanitize($_POST['gender']);
         $dob        = $_POST['dob'] ?? '';
         $password   = password_hash($_POST['password'] ?: 'password', PASSWORD_DEFAULT);
 
-        $stmt = $db->prepare("INSERT INTO students (student_id,name,email,password,class,section,phone,gender,dob) VALUES(?,?,?,?,?,?,?,?,?)");
-        $stmt->bind_param('sssssssss', $sid,$name,$email,$password,$class,$section,$phone,$gender,$dob);
+        $stmt = $db->prepare("INSERT INTO students (student_id,name,email,password,year,degree,phone,gender,dob) VALUES(?,?,?,?,?,?,?,?,?)");
+        $stmt->bind_param('sssssssss', $sid,$name,$email,$password,$year,$degree,$phone,$gender,$dob);
         if ($stmt->execute()) {
             flash('success', 'Student added successfully!');
             redirect('students.php');
@@ -31,13 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($act === 'edit') {
         $id      = (int)$_POST['id'];
         $name    = sanitize($_POST['name']);
-        $class   = sanitize($_POST['class']);
-        $section = sanitize($_POST['section']);
+        $year    = sanitize($_POST['year']);
+        $degree  = sanitize($_POST['degree']);
         $phone   = sanitize($_POST['phone']);
         $status  = sanitize($_POST['status']);
 
-        $stmt = $db->prepare("UPDATE students SET name=?,class=?,section=?,phone=?,status=? WHERE id=?");
-        $stmt->bind_param('sssssi', $name,$class,$section,$phone,$status,$id);
+        $stmt = $db->prepare("UPDATE students SET name=?,year=?,degree=?,phone=?,status=? WHERE id=?");
+        $stmt->bind_param('sssssi', $name,$year,$degree,$phone,$status,$id);
         if ($stmt->execute()) {
             flash('success', 'Student updated!');
             redirect('students.php');
@@ -59,13 +59,14 @@ if ($action === 'edit' && isset($_GET['id'])) {
 
 // Search & filter
 $search = sanitize($_GET['q'] ?? '');
-$filter_class = sanitize($_GET['class'] ?? '');
+$filter_year = sanitize($_GET['year'] ?? '');
+$filter_degree = sanitize($_GET['degree'] ?? '');
 $where = "WHERE status != 'deleted'";
 if ($search)       $where .= " AND (name LIKE '%$search%' OR student_id LIKE '%$search%' OR email LIKE '%$search%')";
-if ($filter_class) $where .= " AND class='$filter_class'";
+if ($filter_year)  $where .= " AND year='$filter_year'";
+if ($filter_degree) $where .= " AND degree='$filter_degree'";
 
 $students = $db->query("SELECT * FROM students $where ORDER BY created_at DESC");
-$classes  = $db->query("SELECT DISTINCT class FROM students ORDER BY class");
 
 $success = flash('success');
 
@@ -84,11 +85,17 @@ require_once '../includes/admin_header.php';
   <form method="GET" style="display:flex;gap:10px;flex:1;">
     <input type="text" name="q" placeholder="Search students..." value="<?= htmlspecialchars($search) ?>"
            style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 16px;color:var(--text);font-size:.9rem;outline:none;flex:1;max-width:300px;">
-    <select name="class" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:.9rem;outline:none;">
-      <option value="">All Classes</option>
-      <?php $classes->data_seek(0); while ($c = $classes->fetch_assoc()): ?>
-      <option value="<?= $c['class'] ?>" <?= $filter_class===$c['class']?'selected':'' ?>><?= $c['class'] ?></option>
-      <?php endwhile; ?>
+    <select name="year" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:.9rem;outline:none;">
+      <option value="">All Years</option>
+      <?php foreach (getYears() as $y): ?>
+      <option value="<?= $y ?>" <?= $filter_year===$y?'selected':'' ?>><?= $y ?> Year</option>
+      <?php endforeach; ?>
+    </select>
+    <select name="degree" style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-size:.9rem;outline:none;">
+      <option value="">All Degrees</option>
+      <?php foreach (getDegrees() as $d): ?>
+      <option value="<?= $d ?>" <?= $filter_degree===$d?'selected':'' ?>><?= $d ?></option>
+      <?php endforeach; ?>
     </select>
     <button type="submit" class="btn btn-outline">Filter</button>
   </form>
@@ -107,7 +114,7 @@ require_once '../includes/admin_header.php';
     <table>
       <thead>
         <tr>
-          <th>Student</th><th>ID</th><th>Class</th><th>Contact</th><th>Status</th><th>Joined</th><th>Actions</th>
+          <th>Student</th><th>ID</th><th>Year</th><th>Degree</th><th>Contact</th><th>Status</th><th>Joined</th><th>Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -125,7 +132,8 @@ require_once '../includes/admin_header.php';
             </div>
           </td>
           <td><span class="badge badge-blue"><?= $s['student_id'] ?></span></td>
-          <td><?= $s['class'] ?> – <?= $s['section'] ?></td>
+          <td><?= $s['year'] ?></td>
+          <td><span class="badge badge-purple"><?= $s['degree'] ?></span></td>
           <td style="font-size:.85rem;"><?= $s['phone'] ?: '—' ?></td>
           <td>
             <span class="badge <?= $s['status']==='Active' ? 'badge-green' : 'badge-red' ?>">
@@ -183,20 +191,19 @@ require_once '../includes/admin_header.php';
         </div>
         <div class="form-row cols-3">
           <div class="form-field">
-            <label>Class *</label>
-            <select name="class" required>
-              <option value="Class 9">Class 9</option>
-              <option value="Class 10" selected>Class 10</option>
-              <option value="Class 11">Class 11</option>
-              <option value="Class 12">Class 12</option>
+            <label>Year *</label>
+            <select name="year" required>
+              <?php foreach (getYears() as $y): ?>
+              <option value="<?= $y ?>"><?= $y ?></option>
+              <?php endforeach; ?>
             </select>
           </div>
           <div class="form-field">
-            <label>Section</label>
-            <select name="section">
-              <option value="A">A</option>
-              <option value="B">B</option>
-              <option value="C">C</option>
+            <label>Degree *</label>
+            <select name="degree" required>
+              <?php foreach (getDegrees() as $d): ?>
+              <option value="<?= $d ?>"><?= $d ?></option>
+              <?php endforeach; ?>
             </select>
           </div>
           <div class="form-field">
@@ -250,20 +257,19 @@ require_once '../includes/admin_header.php';
         </div>
         <div class="form-row cols-3">
           <div class="form-field">
-            <label>Class</label>
-            <select name="class" id="editClass">
-              <option value="Class 9">Class 9</option>
-              <option value="Class 10">Class 10</option>
-              <option value="Class 11">Class 11</option>
-              <option value="Class 12">Class 12</option>
+            <label>Year</label>
+            <select name="year" id="editYear">
+              <?php foreach (getYears() as $y): ?>
+              <option value="<?= $y ?>"><?= $y ?></option>
+              <?php endforeach; ?>
             </select>
           </div>
           <div class="form-field">
-            <label>Section</label>
-            <select name="section" id="editSection">
-              <option value="A">A</option>
-              <option value="B">B</option>
-              <option value="C">C</option>
+            <label>Degree</label>
+            <select name="degree" id="editDegree">
+              <?php foreach (getDegrees() as $d): ?>
+              <option value="<?= $d ?>"><?= $d ?></option>
+              <?php endforeach; ?>
             </select>
           </div>
           <div class="form-field">
@@ -291,8 +297,8 @@ function editStudent(s) {
   document.getElementById('editId').value = s.id;
   document.getElementById('editName').value = s.name;
   document.getElementById('editPhone').value = s.phone || '';
-  document.getElementById('editClass').value = s.class;
-  document.getElementById('editSection').value = s.section;
+  document.getElementById('editYear').value = s.year;
+  document.getElementById('editDegree').value = s.degree;
   document.getElementById('editStatus').value = s.status;
   openModal('editModal');
 }

@@ -4,7 +4,7 @@ $db = getDB();
 
 // Top performers
 $top_students = $db->query("
-    SELECT s.name, s.student_id as uid, s.class,
+    SELECT s.name, s.student_id as uid, CONCAT(s.year,' ',s.degree) as class,
            AVG(m.marks_obtained/m.max_marks*100) as avg_pct,
            COUNT(m.id) as exams
     FROM marks m JOIN students s ON m.student_id=s.id
@@ -14,11 +14,11 @@ $top_students = $db->query("
 
 // Attendance rate by class
 $att_by_class = $db->query("
-    SELECT s.class,
+    SELECT CONCAT(s.year,' ',s.degree) as class,
            COUNT(CASE WHEN a.status='Present' THEN 1 END) as present,
            COUNT(a.id) as total
     FROM attendance a JOIN students s ON a.student_id=s.id
-    GROUP BY s.class ORDER BY s.class
+    GROUP BY s.year, s.degree ORDER BY s.year, s.degree
 ");
 $att_labels = []; $att_rates = [];
 while ($r = $att_by_class->fetch_assoc()) {

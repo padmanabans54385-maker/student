@@ -24,7 +24,7 @@ for ($i = 6; $i >= 0; $i--) {
 }
 
 // Class-wise student distribution
-$class_data = $db->query("SELECT class, COUNT(*) as cnt FROM students WHERE status='Active' GROUP BY class ORDER BY class");
+$class_data = $db->query("SELECT CONCAT(year,' ',degree) as class, COUNT(*) as cnt FROM students WHERE status='Active' GROUP BY year, degree ORDER BY year, degree");
 $class_labels = []; $class_counts = [];
 while ($row = $class_data->fetch_assoc()) {
     $class_labels[] = $row['class'];
@@ -54,7 +54,7 @@ while ($row = $grade_data->fetch_assoc()) {
 }
 
 // Recent students
-$recent_students = $db->query("SELECT name, student_id, class, section, created_at FROM students ORDER BY created_at DESC LIMIT 6");
+$recent_students = $db->query("SELECT name, student_id, CONCAT(year,' ',degree) as class, created_at FROM students ORDER BY created_at DESC LIMIT 6");
 
 // Notices
 $notices = $db->query("SELECT title, created_at FROM notices ORDER BY created_at DESC LIMIT 4");
@@ -176,7 +176,7 @@ $notices = $db->query("SELECT title, created_at FROM notices ORDER BY created_at
               </div>
             </td>
             <td><span class="badge badge-blue"><?= $s['student_id'] ?></span></td>
-            <td><?= $s['class'] ?> - <?= $s['section'] ?></td>
+            <td><?= $s['class'] ?></td>
             <td style="color:var(--muted);font-size:.8rem;"><?= date('d M Y', strtotime($s['created_at'])) ?></td>
           </tr>
           <?php endwhile; ?>

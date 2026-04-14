@@ -8,7 +8,7 @@ define('DB_USER', 'root');         // Change to your MySQL username
 define('DB_PASS', '');             // Change to your MySQL password
 define('DB_NAME', 'sms_db');
 define('APP_NAME', 'EduTrack SMS');
-define('APP_VERSION', '2.0');
+define('APP_VERSION', '3.0');
 define('BASE_URL', 'http://localhost/sms/');
 
 // Start session
@@ -31,15 +31,26 @@ function getDB(): mysqli {
 
 // ── Auth Helpers ─────────────────────────────────────────────
 function isAdminLoggedIn(): bool {
-    return isset($_SESSION['admin_id']) && $_SESSION['role'] === 'admin';
+    return isset($_SESSION['admin_id']) && ($_SESSION['role'] ?? '') === 'admin';
+}
+
+function isStaffLoggedIn(): bool {
+    return isset($_SESSION['staff_id']) && ($_SESSION['role'] ?? '') === 'staff';
 }
 
 function isStudentLoggedIn(): bool {
-    return isset($_SESSION['student_id']) && $_SESSION['role'] === 'student';
+    return isset($_SESSION['student_id']) && ($_SESSION['role'] ?? '') === 'student';
 }
 
 function requireAdmin(): void {
     if (!isAdminLoggedIn()) {
+        header('Location: ' . BASE_URL . 'index.php');
+        exit;
+    }
+}
+
+function requireStaff(): void {
+    if (!isStaffLoggedIn()) {
         header('Location: ' . BASE_URL . 'index.php');
         exit;
     }
@@ -92,4 +103,26 @@ function flash(string $key, string $msg = null): ?string {
     $val = $_SESSION["flash_$key"] ?? null;
     unset($_SESSION["flash_$key"]);
     return $val;
+}
+
+// ── Year & Degree Constants ──────────────────────────────────
+function getYears(): array {
+    return ['I', 'II', 'III'];
+}
+
+function getDegrees(): array {
+    return ['MCA', 'BCA'];
+}
+
+// ── Exam Type Helpers ────────────────────────────────────────
+function getTheoryExamTypes(): array {
+    return ['Internal 1', 'Internal 2', 'Assignment 1', 'Assignment 2', 'Quiz', 'Seminar', 'External'];
+}
+
+function getLabExamTypes(): array {
+    return ['Internal', 'External'];
+}
+
+function getAllExamTypes(): array {
+    return array_unique(array_merge(getTheoryExamTypes(), getLabExamTypes()));
 }

@@ -5,7 +5,7 @@ requireStudent();
 $db = getDB();
 $sid = $_SESSION['student_id'];
 $student = $db->query("SELECT * FROM students WHERE id=$sid")->fetch_assoc();
-$class   = $student['class'];
+$class   = $student['year'] . ' ' . $student['degree'];
 
 // Attendance stats
 $att_total   = $db->query("SELECT COUNT(*) as c FROM attendance WHERE student_id=$sid")->fetch_assoc()['c'];
@@ -155,7 +155,7 @@ tr:hover td{background:rgba(16,185,129,.04);}
       <div class="avatar"><?= strtoupper(substr($student['name'],0,1)) ?></div>
       <div>
         <div class="user-name"><?= htmlspecialchars($student['name']) ?></div>
-        <div class="user-role"><?= $student['class'] ?> – <?= $student['section'] ?></div>
+        <div class="user-role"><?= $student['year'] ?> <?= $student['degree'] ?></div>
       </div>
     </div>
     <a href="../logout.php" class="btn-logout">⬡ Logout</a>
@@ -169,7 +169,7 @@ tr:hover td{background:rgba(16,185,129,.04);}
       <h1>Welcome back, <?= htmlspecialchars(explode(' ',$student['name'])[0]) ?>! 👋</h1>
       <div class="breadcrumb">Student Portal / <span>Dashboard</span></div>
     </div>
-    <div style="font-size:.82rem;color:var(--muted);"><?= $student['student_id'] ?> · <?= $student['class'] ?></div>
+    <div style="font-size:.82rem;color:var(--muted);"><?= $student['student_id'] ?> · <?= $student['year'] ?> <?= $student['degree'] ?></div>
   </div>
 
   <div class="page-content">
@@ -287,30 +287,39 @@ tr:hover td{background:rgba(16,185,129,.04);}
 </div>
 
 <script>
+const subLabels = <?= json_encode($s_labels) ?>;
+const subData = <?= json_encode($s_data) ?>;
+const barColors = subData.map(v => v >= 80 ? 'rgba(16,185,129,.75)' : v >= 60 ? 'rgba(79,142,247,.75)' : v >= 40 ? 'rgba(245,158,11,.75)' : 'rgba(239,68,68,.75)');
+
 new Chart(document.getElementById('subChart'), {
-  type: 'radar',
+  type: 'bar',
   data: {
-    labels: <?= json_encode($s_labels) ?>,
+    labels: subLabels,
     datasets: [{
       label: 'Score %',
-      data: <?= json_encode($s_data) ?>,
-      borderColor: '#10b981',
-      backgroundColor: 'rgba(16,185,129,.12)',
-      borderWidth: 2,
-      pointBackgroundColor: '#10b981',
-      pointRadius: 4,
+      data: subData,
+      backgroundColor: barColors,
+      borderRadius: 8,
+      borderSkipped: false,
+      barThickness: subLabels.length <= 3 ? 36 : undefined,
     }]
   },
   options: {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+    indexAxis: 'y',
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => ctx.parsed.x + '%' } }
+    },
     scales: {
-      r: {
+      x: {
         min: 0, max: 100,
-        ticks: { color: '#64748b', backdropColor: 'transparent', stepSize: 20 },
-        grid: { color: 'rgba(30,45,66,.8)' },
-        pointLabels: { color: '#94a3b8', font: { size: 11 } },
-        angleLines: { color: 'rgba(30,45,66,.8)' }
+        ticks: { color: '#64748b', callback: v => v + '%', stepSize: 20 },
+        grid: { color: 'rgba(30,45,66,.6)' }
+      },
+      y: {
+        ticks: { color: '#94a3b8', font: { size: 12, weight: 500 } },
+        grid: { display: false }
       }
     }
   }

@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['act'] ?? '') === 'save') {
         $stmt = $db->prepare("INSERT INTO attendance (student_id, subject_id, date, status, marked_by)
                                VALUES(?,?,?,?,?)
                                ON DUPLICATE KEY UPDATE status=VALUES(status)");
-        $stmt->bind_param('iissi', $student_id, $subject_id, $date, $status, $_SESSION['admin_id']);
+        $stmt->bind_param('iissi', $student_id, $subject_id, $date, $status, $_SESSION['staff_id']);
         $stmt->execute();
     }
     flash('success', 'Attendance saved for ' . date('d M Y', strtotime($date)));
@@ -53,7 +53,7 @@ if ($sel_date) {
 }
 
 $success = flash('success');
-require_once '../includes/admin_header.php';
+require_once '../includes/staff_header.php';
 ?>
 
 <?php if ($success): ?><div class="alert alert-success">✓ <?= htmlspecialchars($success) ?></div><?php endif; ?>
@@ -210,4 +210,7 @@ function updateLabel(studentId) {
 }
 </script>
 
-<?php require_once '../includes/admin_footer.php'; ?>
+  </div>
+</div>
+</body>
+</html>

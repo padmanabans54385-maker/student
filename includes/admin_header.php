@@ -7,6 +7,7 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
 $nav = [
     'dashboard'  => ['icon' => '⬡', 'label' => 'Dashboard'],
     'students'   => ['icon' => '◉', 'label' => 'Students'],
+    'staffs'     => ['icon' => '◎', 'label' => 'Staffs'],
     'attendance' => ['icon' => '◎', 'label' => 'Attendance'],
     'marks'      => ['icon' => '◈', 'label' => 'Marks'],
     'subjects'   => ['icon' => '⬟', 'label' => 'Subjects'],
@@ -17,6 +18,7 @@ $nav = [
 $page_titles = [
     'dashboard'  => 'Dashboard',
     'students'   => 'Students',
+    'staffs'     => 'Staffs',
     'attendance' => 'Attendance',
     'marks'      => 'Marks & Results',
     'subjects'   => 'Subjects',

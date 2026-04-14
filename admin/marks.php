@@ -32,18 +32,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$filter_class   = sanitize($_GET['class'] ?? '');
+$filter_year    = sanitize($_GET['year'] ?? '');
 $filter_subject = (int)($_GET['subject_id'] ?? 0);
 $filter_type    = sanitize($_GET['exam_type'] ?? '');
 
 $where = "WHERE 1";
-if ($filter_class)   $where .= " AND s.class='$filter_class'";
+if ($filter_year)    $where .= " AND s.year='$filter_year'";
 if ($filter_subject) $where .= " AND m.subject_id=$filter_subject";
 if ($filter_type)    $where .= " AND m.exam_type='$filter_type'";
 
 $marks_list = $db->query("
-    SELECT m.*, s.name as student_name, s.student_id as student_uid, s.class,
-           sub.name as subject_name
+    SELECT m.*, s.name as student_name, s.student_id as student_uid, s.year, s.degree,
+           sub.name as subject_name, sub.type as subject_type
     FROM marks m
     JOIN students s ON m.student_id = s.id
     JOIN subjects sub ON m.subject_id = sub.id
@@ -52,9 +52,16 @@ $marks_list = $db->query("
     LIMIT 100
 ");
 
-$students = $db->query("SELECT id, name, student_id, class FROM students WHERE status='Active' ORDER BY name");
-$subjects = $db->query("SELECT * FROM subjects ORDER BY class, name");
-$classes  = $db->query("SELECT DISTINCT class FROM students ORDER BY class");
+$students = $db->query("SELECT id, name, student_id, year, degree FROM students WHERE status='Active' ORDER BY name");
+$subjects = $db->query("SELECT * FROM subjects ORDER BY year, degree, name");
+$years    = $db->query("SELECT DISTINCT year FROM students ORDER BY year");
+
+// Build subject data for JS (type info)
+$subjects_js = [];
+$subjects->data_seek(0);
+while ($s = $subjects->fetch_assoc()) {
+    $subjects_js[$s['id']] = ['type' => $s['type'], 'name' => $s['name'], 'year' => $s['year'], 'degree' => $s['degree']];
+}
 
 $success = flash('success');
 require_once '../includes/admin_header.php';
@@ -76,11 +83,11 @@ require_once '../includes/admin_header.php';
   <div class="panel-body" style="padding:16px 24px;">
     <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
       <div class="form-field" style="margin:0;min-width:140px;">
-        <label>Class</label>
-        <select name="class">
-          <option value="">All Classes</option>
-          <?php $classes->data_seek(0); while ($c = $classes->fetch_assoc()): ?>
-          <option value="<?= $c['class'] ?>" <?= $filter_class===$c['class']?'selected':'' ?>><?= $c['class'] ?></option>
+        <label>Year</label>
+        <select name="year">
+          <option value="">All Years</option>
+          <?php $years->data_seek(0); while ($y = $years->fetch_assoc()): ?>
+          <option value="<?= $y['year'] ?>" <?= $filter_year===$y['year']?'selected':'' ?>><?= $y['year'] ?> Year</option>
           <?php endwhile; ?>
         </select>
       </div>
@@ -89,7 +96,7 @@ require_once '../includes/admin_header.php';
         <select name="subject_id">
           <option value="">All Subjects</option>
           <?php $subjects->data_seek(0); while ($s = $subjects->fetch_assoc()): ?>
-          <option value="<?= $s['id'] ?>" <?= $filter_subject==$s['id']?'selected':'' ?>><?= $s['name'] ?></option>
+          <option value="<?= $s['id'] ?>" <?= $filter_subject==$s['id']?'selected':'' ?>><?= $s['name'] ?> (<?= $s['year'] ?> - <?= $s['degree'] ?>)</option>
           <?php endwhile; ?>
         </select>
       </div>
@@ -97,7 +104,7 @@ require_once '../includes/admin_header.php';
         <label>Exam Type</label>
         <select name="exam_type">
           <option value="">All Types</option>
-          <?php foreach (['Unit Test','Mid Term','Final','Assignment'] as $t): ?>
+          <?php foreach (getAllExamTypes() as $t): ?>
           <option value="<?= $t ?>" <?= $filter_type===$t?'selected':'' ?>><?= $t ?></option>
           <?php endforeach; ?>
         </select>
@@ -125,7 +132,7 @@ require_once '../includes/admin_header.php';
               <div class="avatar" style="width:30px;height:30px;font-size:.75rem;"><?= strtoupper(substr($m['student_name'],0,1)) ?></div>
               <div>
                 <div style="font-size:.88rem;font-weight:500;"><?= htmlspecialchars($m['student_name']) ?></div>
-                <div style="font-size:.75rem;color:var(--muted);"><?= $m['class'] ?></div>
+                <div style="font-size:.75rem;color:var(--muted);"><?= $m['year'] ?> - <?= $m['degree'] ?></div>
               </div>
             </div>
           </td>
@@ -176,7 +183,7 @@ require_once '../includes/admin_header.php';
             <select name="student_id" required>
               <option value="">— Select Student —</option>
               <?php $students->data_seek(0); while ($s = $students->fetch_assoc()): ?>
-              <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['name']) ?> (<?= $s['student_id'] ?>) — <?= $s['class'] ?></option>
+              <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['name']) ?> (<?= $s['student_id'] ?>) — <?= $s['year'] ?> <?= $s['degree'] ?></option>
               <?php endwhile; ?>
             </select>
           </div>
@@ -184,19 +191,17 @@ require_once '../includes/admin_header.php';
         <div class="form-row cols-2">
           <div class="form-field">
             <label>Subject *</label>
-            <select name="subject_id" required>
+            <select name="subject_id" id="subjectSelect" required onchange="updateExamTypes()">
               <option value="">— Select Subject —</option>
               <?php $subjects->data_seek(0); while ($s = $subjects->fetch_assoc()): ?>
-              <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['class'] . ' — ' . $s['name']) ?></option>
+              <option value="<?= $s['id'] ?>" data-type="<?= $s['type'] ?>"><?= htmlspecialchars($s['year'] . ' ' . $s['degree'] . ' — ' . $s['name']) ?> (<?= $s['type'] ?>)</option>
               <?php endwhile; ?>
             </select>
           </div>
           <div class="form-field">
             <label>Exam Type *</label>
-            <select name="exam_type" required>
-              <?php foreach (['Unit Test','Mid Term','Final','Assignment'] as $t): ?>
-              <option value="<?= $t ?>"><?= $t ?></option>
-              <?php endforeach; ?>
+            <select name="exam_type" id="examTypeSelect" required>
+              <option value="">— Select Subject First —</option>
             </select>
           </div>
         </div>
@@ -230,6 +235,31 @@ require_once '../includes/admin_header.php';
 </div>
 
 <script>
+const theoryTypes = <?= json_encode(getTheoryExamTypes()) ?>;
+const labTypes = <?= json_encode(getLabExamTypes()) ?>;
+
+function updateExamTypes() {
+  const select = document.getElementById('subjectSelect');
+  const examSelect = document.getElementById('examTypeSelect');
+  const option = select.options[select.selectedIndex];
+  const type = option.getAttribute('data-type');
+
+  examSelect.innerHTML = '';
+
+  if (!type) {
+    examSelect.innerHTML = '<option value="">— Select Subject First —</option>';
+    return;
+  }
+
+  const types = type === 'Lab' ? labTypes : theoryTypes;
+  types.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t;
+    examSelect.appendChild(opt);
+  });
+}
+
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 document.querySelectorAll('.modal-overlay').forEach(o =>

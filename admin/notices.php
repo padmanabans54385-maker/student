@@ -70,7 +70,7 @@ require_once '../includes/admin_header.php';
         <div class="form-row"><div class="form-field"><label>Title *</label><input type="text" name="title" required placeholder="Notice title"></div></div>
         <div class="form-row"><div class="form-field"><label>Content *</label><textarea name="content" rows="4" required placeholder="Write the notice content..." style="resize:vertical;"></textarea></div></div>
         <div class="form-row"><div class="form-field"><label>Target Audience</label>
-          <select name="target"><option value="All">All</option><option value="Students">Students</option></select>
+          <select name="target"><option value="All">All</option><option value="staffs">Staffs</option><option value="Students">Students</option></select>
         </div></div>
       </div>
       <div class="modal-foot">
